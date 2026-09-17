@@ -1,0 +1,269 @@
+# TEMPLATE — copy to `.github/workflows/ci.yml` and replace every <…> placeholder:
+#
+#   <NODE_MAJOR>      the Node major this project builds on
+#   <BUILD_DIR>       the framework's output directory (dist, build, out, …)
+#   <YOUR_FOLDER>     the folder that belongs ENTIRELY to this repo
+#   <SITE_URL>        the live URL prefix the build is served at, WITH trailing slash
+#                     (https://www.example.com/ or https://www.example.com/app/)
+#   <SSH_AGENT_SHA>   the full commit SHA of webfactory/ssh-agent's release tag —
+#                     resolve it yourself, see references/deploy.md
+#
+# Node/TypeScript example. Translate the steps for another stack — what matters is the
+# SHAPE, and the comments explaining why each guard exists are part of the template.
+# The long-form reasoning for every step lives in references/deploy.md.
+#
+# ⚠️ If the deploy target is a whole document root, the guard's `case` must pin the
+#    exact path — match it fully, never a wildcard. The guard exists to fail closed.
+# ⚠️ If the target does NOT belong entirely to this repo, REMOVE `--delete` and accept
+#    that deleted files linger. Never point a mirror at a folder you share.
+
+name: CI & Deploy
+
+# ONE workflow on purpose. `needs:` only works between jobs of the SAME workflow, and
+# `needs:` is what makes the race IMPOSSIBLE rather than merely unlikely: two workflows
+# both triggered by `push: main` are independent runs, so a merge with failing checks
+# still ships — the deploy does its own build, and if it compiles, it goes live.
+#
+# Deliberately NOT `workflow_run:` — it runs the workflow file from the default branch,
+# checks out the wrong ref by default, and its conclusion handling is a known footgun.
+
+on:
+  push:
+    branches: [main]
+  # NO branch filter on purpose: `branches: [main]` would give a PR stacked on another
+  # PR's branch no CI at all, silently. The deploy job's own `if:` is what restricts
+  # deploys to main, so this cannot widen what ships.
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  quality:
+    name: Check, test & build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: <NODE_MAJOR>
+          cache: npm
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run lint
+      - run: npm run typecheck # or the stack's equivalent: `astro check`, `tsc --noEmit`, …
+      - run: npm run test
+      - run: npm run build
+
+  # A SEPARATE job, in parallel with `quality`, so neither gate masks the other: a failing
+  # lint must not hide a real advisory, and an advisory must not abort the run before the
+  # code checks report. Both always run; both block the deploy.
+  #
+  # Production deps only — nothing from node_modules is deployed, only the built output.
+  # That does NOT make the toolchain harmless: a compromised build tool writes straight
+  # into that output. This gate is blind to that by construction, which is exactly why
+  # automated security alerts stay ON, and why advisories are fixed by BUMPING, never by
+  # dismissing (a dismissal closes one advisory; a bump closes the package).
+  audit:
+    name: Audit production dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: <NODE_MAJOR>
+          cache: npm
+      - run: npm ci
+
+      # 🔴 An audit that COULD NOT RUN is not a clean audit — and it is not a finding
+      # either. `npm audit` exits non-zero for both "I found a high advisory" and "the
+      # advisories endpoint returned 503", and with `needs: [quality, audit]` that
+      # second case BLOCKS THE DEPLOY: npm's uptime becomes a precondition for shipping
+      # a fix to your own site, and a red check that means "npm was down" trains people
+      # to ignore the one gate that is supposed to stop a real advisory. So: retry, then
+      # tell the two apart by whether a real report came back.
+      - name: Audit production dependencies
+        run: |
+          # NOT `set -e`: a non-zero `npm audit` is the input to the decision below,
+          # not a reason to abort the step. (GitHub's default shell is `bash -e`.)
+          set +e -uo pipefail
+          for attempt in 1 2 3; do
+            npm audit --audit-level=high --omit=dev --json > audit.json
+            code=$?
+            # A real report always carries the vulnerability counts. Anything else —
+            # non-JSON, or JSON with an `error` object — is the endpoint, not our tree.
+            if jq -e '.metadata.vulnerabilities' audit.json > /dev/null 2>&1; then
+              if [ "$code" -eq 0 ]; then
+                echo "No high or critical advisories in production dependencies."
+                exit 0
+              fi
+              echo "::error::npm audit found high/critical advisories in production dependencies."
+              npm audit --audit-level=high --omit=dev || true
+              exit 1
+            fi
+            echo "Attempt $attempt: the audit did not produce a report (exit $code). Retrying…"
+            head -c 500 audit.json || true
+            sleep $((attempt * 15))
+          done
+          echo "::warning::npm audit could not run after 3 attempts — the advisories endpoint is unreachable. This is NOT a clean audit; re-run this job once npm is back."
+          exit 0
+
+  deploy:
+    name: Build & rsync to Hostinger
+    needs: [quality, audit]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # Without a group, two quick merges are two whole-tree rsyncs into one folder and the
+    # one that FINISHES LAST wins — possibly the older tree, with both runs green. With it,
+    # the running deploy finishes and only the newest queued run goes next. Never
+    # `cancel-in-progress: true`: cancelling mid-transfer leaves the site half-written.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: <NODE_MAJOR>
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+
+      # The commit this build came from, published next to the site. The last step reads
+      # it back from production — that is what turns "green" into "live". A SHA is safe
+      # to publish.
+      - name: Stamp the build with its commit
+        run: printf '%s\n' "$GITHUB_SHA" > <BUILD_DIR>/version.txt
+
+      # Two things turn `rsync --delete` into a disaster, and NEITHER needs a bad merge:
+      #
+      #   1. The DESTINATION. DEPLOY_PATH is the only thing keeping the mirror off the rest
+      #      of the document root — sibling projects and hand-uploaded files that are in no
+      #      repo. A widened or mistyped secret erases them, with no undo from git.
+      #   2. The SOURCE. --delete makes the destination an exact mirror of the build output,
+      #      so a build that silently produced an empty tree DELETES THE LIVE SITE.
+      #
+      # Refuse in either case. This runs BEFORE the deploy key is loaded: the checks are
+      # cheap and secret-free, so a doomed job never receives the private key. Keep that
+      # ordering if you touch this file.
+      - name: Guard the deploy path
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          case "${DEPLOY_PATH%/}" in                 # tolerate an optional trailing slash
+            */public_html/<YOUR_FOLDER>) ;;
+            *) echo "::error::DEPLOY_PATH does not point at our folder — refusing to rsync --delete."; exit 1 ;;
+          esac
+          test -s <BUILD_DIR>/index.html \
+            || { echo "::error::<BUILD_DIR>/index.html is missing or empty — refusing to rsync --delete."; exit 1; }
+          test "$(find <BUILD_DIR> -type f | wc -l)" -ge 10 \
+            || { echo "::error::<BUILD_DIR>/ has fewer than 10 files — refusing to rsync --delete."; exit 1; }
+
+      # Pinned by COMMIT, not by tag: this action is handed the private key, and a tag is a
+      # movable pointer anyone controlling that repository can repoint.
+      - name: Load deploy key
+        uses: webfactory/ssh-agent@<SSH_AGENT_SHA> # v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      # The host key is PINNED, not scanned.
+      #
+      # `ssh-keyscan` asks the server for its own key on every run and believes whatever
+      # comes back, then uses that answer to "verify" that same server — trust-on-first-use
+      # on EVERY deploy, so the check is decorative. It is also a network call that fails
+      # SAFE BUT SILENT: retries that all fail skip the rsync, leaving a fix merged and
+      # green on `main` while production keeps serving the bug.
+      #
+      # On a non-22 port the secret's line must read `[host]:port ssh-ed25519 AAAA…`.
+      # Legitimate rotation fails this deploy loudly — re-verify the key from a trusted
+      # network and update the secret. Do NOT go back to ssh-keyscan.
+      - name: Trust the host (pinned key)
+        env:
+          KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          test -s ~/.ssh/known_hosts
+
+      # The TRAILING SLASH on the source is load-bearing: `./<BUILD_DIR>/` copies the
+      # CONTENTS; without it the directory itself lands one level too deep.
+      # -rlptvz preserves perms and times but NOT owner/group — shared hosting cannot chown,
+      # and asking it to (-a) produces noise or outright failures.
+      #
+      # BOUNDED RETRY, and the *condition* is the point of it. Shared-hosting SSH times out
+      # now and then, and a red deploy right after a merge LOOKS like the PR's fault. But a
+      # blind retry would hide the one failure that matters: a broken deploy key or a rotated
+      # host key must stay red on the FIRST attempt. Exit status can't tell the two apart
+      # (ssh returns 255 for a timeout *and* for `Permission denied`), so the decision reads
+      # the message — and it is allow-listed: only a recognised connection failure retries.
+      - name: Deploy (rsync over SSH)
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/rsync.log"
+          backoff=(10 30)                        # one delay per RETRY; its length sets the count
+          attempts=$(( ${#backoff[@]} + 1 ))
+
+          for attempt in $(seq 1 "$attempts"); do
+            echo "rsync attempt $attempt of $attempts"
+
+            if rsync -rlptvz --delete \
+              -e "ssh -p $SSH_PORT -o ConnectTimeout=15" \
+              ./<BUILD_DIR>/ \
+              "$SSH_USER@$SSH_HOST:$DEPLOY_PATH" \
+              2>&1 | tee "$log"; then
+              echo "Deployed on attempt $attempt of $attempts."
+              exit 0
+            fi
+
+            # Spelled out, not left to the allow-list below: "never retry an auth failure" is
+            # the constraint this whole loop is built around.
+            if grep -qE 'Permission denied|Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED' "$log"; then
+              echo "::error::rsync could not authenticate (attempt $attempt) — not a transient failure, not retrying."
+              exit 1
+            fi
+
+            if ! grep -qE 'Connection timed out|Connection refused|Connection reset by peer|Network is unreachable|No route to host|Broken pipe' "$log"; then
+              echo "::error::rsync failed on attempt $attempt for a non-connection reason — not retrying."
+              exit 1
+            fi
+
+            if [ "$attempt" -eq "$attempts" ]; then
+              echo "::error::rsync hit a connection failure on all $attempts attempts — deploy aborted."
+              exit 1
+            fi
+
+            delay="${backoff[$(( attempt - 1 ))]}"
+            echo "Connection failure on attempt $attempt of $attempts — retrying in ${delay}s."
+            sleep "$delay"
+          done
+
+      # 🔴 A green merge is not a deploy. From outside, a deploy that never landed looks
+      # exactly like one you have not reloaded yet, so ask PRODUCTION: the entry URL must
+      # answer 200 and the published version.txt must be this commit. The query string
+      # busts server-side caches; the retries give them a moment.
+      - name: Verify production serves this commit
+        env:
+          SITE_URL: <SITE_URL>
+        run: |
+          set -uo pipefail
+          for attempt in 1 2 3 4 5; do
+            status=$(curl -s -o /dev/null -w '%{http_code}' "$SITE_URL") || status=000
+            served=$(curl -fsS "${SITE_URL}version.txt?run=${GITHUB_RUN_ID}-${attempt}" | tr -d '[:space:]') || served=""
+            if [ "$status" = 200 ] && [ "$served" = "$GITHUB_SHA" ]; then
+              echo "Live: $SITE_URL answers 200 and serves $GITHUB_SHA."
+              exit 0
+            fi
+            echo "Attempt $attempt: entry answered $status, version.txt says '${served:-<nothing>}' (want $GITHUB_SHA). Retrying in 10s…"
+            sleep 10
+          done
+          echo "::error::Production does not serve this commit after the rsync — the deploy did not land."
+          exit 1

@@ -1,0 +1,43 @@
+# TEMPLATE — rules for the DOCUMENT ROOT's `.htaccess`.
+#
+# 🔴 READ THIS FIRST. In a shared document root (shape 2) this file is NOT yours and is in
+#    NO repo: it is edited by hand, no deploy touches it, and a mistake affects every
+#    project on the domain. The owner applies it, with the rollback written down first —
+#    which is always "delete these N lines": no deploy, no CI, immediate.
+#
+# Place your block FIRST, right under `RewriteEngine on`, ABOVE the panel-generated rules.
+# Then MEASURE with `curl -sIL https://example.com/` and count the hops.
+
+RewriteEngine on
+
+# ── Host canonicalisation (bare domain -> www) ──────────────────────────────
+#
+# Match the BARE HOST EXPLICITLY (`^example\.com$`), never `!^www\.`. A request already on
+# www can then never match, so a redirect LOOP IS IMPOSSIBLE BY CONSTRUCTION — and a loop
+# takes the whole domain down.
+#
+# 🔴 The `.well-known` exemption is NOT optional. That path is how the certificate
+#    authority proves domain ownership when the SSL CERTIFICATE RENEWS. Redirect it and
+#    nothing breaks today; it breaks in WEEKS, and the symptom is the entire domain behind
+#    a TLS warning. Verify with `curl -sI https://example.com/.well-known/x` — it must
+#    answer 404, NOT 301, on every host the domain answers on.
+#
+# [NE] is required: %{REQUEST_URI} arrives already percent-encoded, and without NE
+# mod_rewrite re-escapes it (%20 -> %2520). The query string rides along by itself —
+# do not add `?` to the substitution.
+#
+# ⚠️ This is not cosmetic when the app stores anything locally: localStorage and cookies
+#    are isolated PER ORIGIN, so example.com and www.example.com are two different stores.
+#    A visitor arriving on the other host silently loses their saved state.
+
+RewriteCond %{HTTP_HOST} ^example\.com$ [NC]
+RewriteCond %{REQUEST_URI} !^/\.well-known/
+RewriteRule ^ https://www.example.com%{REQUEST_URI} [R=301,L,NE]
+
+# ── If the root redirects to a landing page elsewhere ───────────────────────
+#
+# Watch the PROTOCOL. A panel-generated rule commonly emits `http://`, which the server's
+# Force-HTTPS then bounces back to https — an invisible extra hop on every bare-domain
+# visit. Emit `https://` yourself, and put your block above theirs.
+#
+# RewriteRule ^/?$ https://www.example.com/landing/ [R=301,L]

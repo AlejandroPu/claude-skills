@@ -1,0 +1,135 @@
+# Node/TypeScript example. Translate the steps for other stacks — what matters is
+# the shape: CI is a SUPERSET of the local `verify` command, plus the checks that
+# can only run on a runner (build, integration against a real DB).
+#
+# The job names below ("Check, test & build" and "Audit production
+# dependencies") are what branch protection references as required checks. If you
+# rename one, update the protection rule.
+
+name: CI
+
+on:
+  push:
+    branches: [{{DEFAULT_BRANCH}}]
+  # NO branch filter on purpose: `branches: [{{DEFAULT_BRANCH}}]` would give a PR stacked
+  # on another PR's branch no CI at all, silently.
+  pull_request:
+
+jobs:
+  quality:
+    name: Check, test & build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: {{NODE_MAJOR}}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # These four are exactly what `npm run verify` runs locally. Same verdict.
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm run test
+
+      # CI-only: slow, and not faithfully reproducible on every dev machine.
+      - name: Build
+        run: npm run build
+
+  # A SEPARATE job, in PARALLEL with `quality`, so neither gate masks the other: a
+  # failing lint must not hide a real advisory, and an advisory must not abort the run
+  # before the code checks report.
+  #
+  # Production deps only — dev-only tooling advisories don't block, and with
+  # `--omit=dev` this job does not report them either; they never reach the runtime,
+  # and blocking on them just trains people to ignore the gate. That does NOT make
+  # the toolchain harmless: a compromised build tool writes straight into the output.
+  # This gate is blind to that by construction, which is why automated security
+  # alerts stay ON and advisories are fixed by BUMPING, never by dismissing.
+  audit:
+    name: Audit production dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: {{NODE_MAJOR}}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # 🔴 An audit that COULD NOT RUN is not a clean audit — and it is not a finding
+      # either. `npm audit` exits non-zero for both "I found a high advisory" and "the
+      # advisories endpoint returned 503", and painting the second one red teaches
+      # people to ignore the check; worse, it makes npm's uptime a precondition for
+      # shipping a fix to your own site. So: retry, then tell the two apart by whether
+      # a real report came back, and only fail on an actual finding.
+      - name: Audit production dependencies
+        run: |
+          # NOT `set -e`: a non-zero `npm audit` is the input to the decision below,
+          # not a reason to abort the step. (GitHub's default shell is `bash -e`.)
+          set +e -uo pipefail
+          for attempt in 1 2 3; do
+            npm audit --audit-level=high --omit=dev --json > audit.json
+            code=$?
+            # A real report always carries the vulnerability counts. Anything else —
+            # non-JSON, or JSON with an `error` object — is the endpoint, not our tree.
+            if jq -e '.metadata.vulnerabilities' audit.json > /dev/null 2>&1; then
+              if [ "$code" -eq 0 ]; then
+                echo "No high or critical advisories in production dependencies."
+                exit 0
+              fi
+              echo "::error::npm audit found high/critical advisories in production dependencies."
+              npm audit --audit-level=high --omit=dev || true
+              exit 1
+            fi
+            echo "Attempt $attempt: the audit did not produce a report (exit $code). Retrying…"
+            head -c 500 audit.json || true
+            sleep $((attempt * 15))
+          done
+          echo "::warning::npm audit could not run after 3 attempts — the advisories endpoint is unreachable. This is NOT a clean audit; re-run this job once npm is back."
+          exit 0
+
+  # Optional but strongly recommended once there is a database.
+  #
+  # The unit suite above is MOCKED — it is structurally blind to CHECK
+  # constraints, unique indexes, FKs and triggers. Those only fire against a real
+  # engine with the real migrations applied. That blind spot is where "200-green"
+  # bugs ship. Run this job in PARALLEL so fast unit feedback is never blocked.
+  #
+  # integration:
+  #   name: Integration (real database)
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 15
+  #   steps:
+  #     - uses: actions/checkout@v5
+  #     - uses: actions/setup-node@v5
+  #       with: { node-version: {{NODE_MAJOR}}, cache: npm }
+  #     - run: npm ci
+  #     - name: Start a faithful database (real engine, not a stub)
+  #       run: <start the real DB the way production runs it>
+  #     - name: Apply the real migrations
+  #       run: <replay production migration history from zero>
+  #     - name: Run integration tests
+  #       run: npm run test:integration
