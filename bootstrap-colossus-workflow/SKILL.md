@@ -286,6 +286,8 @@ summary** — don't leave a rule in place that the project will silently violate
     core the planner deletes it once read (`.localgit` keeps the history);
   - `WORKFLOW.md` §2.4 → "promote what is durable (status doc, backlog, the spec)"
     becomes "(backlog, the spec)";
+  - `WORKFLOW.md` §2.5, heading → drop "; the tools only help". Keep the section
+    number: other files cite `§2.5` by number;
   - `WORKFLOW.md` §2.5 → the lint paragraph and the auditor paragraphs. **Keep** the
     duty paragraph above them and the "No file is both append-forever and mandatory
     reading" paragraph below, trimmed as the next two items say;
