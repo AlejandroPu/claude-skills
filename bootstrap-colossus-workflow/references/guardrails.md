@@ -54,7 +54,8 @@ Two things worth copying:
 - **A supply-chain gate**: fail the build on high/critical advisories in
   *production* dependencies (`npm audit --audit-level=high --omit=dev`). Dev-only
   tooling advisories do not block, and CI does not report them either — `--omit=dev`
-  leaves them out. GitHub's security alerts are what surface them, so those stay on.
+  leaves them out. GitHub's security alerts are what surface them, so those stay on
+  — and `templates/github/dependabot.yml` turns on version updates too, grouped.
   They never reach the runtime, and blocking on them trains people to ignore the gate.
 - **A separate integration job** running in parallel against a *faithful* database
   (the real engine, real migrations, real constraints and triggers), not a mocked
@@ -89,9 +90,9 @@ On the default branch:
 - Force-push and branch deletion blocked.
 
 This is what makes "never push to the default branch" an enforced fact rather than a
-hope. Offer the human this call (use the job names actually in the project's `ci.yml` — the Colossus
-template or, on a Hostinger project, the one the `hostinger-static-hosting` skill
-wrote):
+hope. If the owner chose protection in the interview (`SKILL.md` Step 1), run this
+call (use the job names actually in the project's `ci.yml` — the Colossus template
+or, on a Hostinger project, the one the `hostinger-static-hosting` skill wrote):
 
 ```bash
 gh api -X PUT repos/:owner/:repo/branches/<default-branch>/protection \
@@ -153,7 +154,8 @@ It exists to catch what a linter structurally cannot: leftover `TODO`s and
 framework boilerplate left in place, accessibility regressions, scope creep (a PR
 doing three unrelated things), a schema change with no migration, a destructive
 migration with no reversibility note, a client-side file bypassing the data-access
-rules, CI steps quietly weakened.
+rules, CI steps quietly weakened, a toolchain major bump with no build-output
+comparison.
 
 Verdict mapping is what makes it usable:
 - any **BLOCK** → `BLOCK`

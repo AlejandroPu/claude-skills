@@ -38,6 +38,8 @@ Work through these in order. Flag what fails; stay silent on what passes.
 - Title under ~70 characters, describes the _why_, not just the _what_.
 - PR body has a Summary and a Test plan. Bullets, not walls of text.
 - Branch name follows the convention (`<prefix>/<kebab-case>` — see `CLAUDE.md`).
+- **Bot PRs** (e.g. Dependabot's `Bump x from a to b`) keep the bot's title, body and
+  branch name. Do not flag them under this section.
 
 ### 2. Secrets and sensitive data
 
@@ -97,6 +99,11 @@ Work through these in order. Flag what fails; stay silent on what passes.
   the PR body.
 - Dependency additions are justified in the PR body — especially runtime deps that
   ship to the client bundle.
+- **A major bump of a tool that rewrites or builds the shipped files** (formatter,
+  compiler, bundler, framework). A green check proves the files match the new tool,
+  not that the output is unchanged: whitespace inside markup can change what renders.
+  The PR body must show the build of `{{DEFAULT_BRANCH}}` and of the branch compared
+  (`diff -r`) with no difference, or every difference explained. Missing → **MAJOR**.
 
 ### 8. — CUSTOMIZE PER STACK — framework & correctness invariants
 

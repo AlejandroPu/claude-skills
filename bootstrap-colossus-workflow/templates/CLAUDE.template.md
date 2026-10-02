@@ -238,6 +238,17 @@ scope that no checklist encodes — and PR volume is low enough that it costs li
   Use `gh pr merge --squash --delete-branch`, then
   `git checkout {{DEFAULT_BRANCH}} && git pull`.
 
+**PRs no lane opened** (Dependabot, other bots). {{PLANNER}} triages them on pickup,
+like any other input.
+
+- **Green** goes to whoever the current stage says merges it. In Stage 1 that is the
+  owner. In Stage 2 it is {{IMPLEMENTER}}, handed over on the baton as an `easy` task:
+  `pr-reviewer`, then merge.
+- **Red** becomes a spec for {{IMPLEMENTER}}, like any other task.
+
+⚠️ A human commit on a bot's branch stops the bot from rebasing it. When a fix has to
+land on one, let the bot rebase first, then commit.
+
 **In both stages, {{PLANNER}} never merges** — merging is part of the PR lifecycle,
 which is the other lane.
 

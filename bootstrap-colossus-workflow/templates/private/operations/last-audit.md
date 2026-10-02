@@ -4,7 +4,8 @@
 > brain and the repo from there to HEAD, and audits what changed. Without it every
 > pass is a full sweep — which is what makes passes too expensive to actually run.
 >
-> **Update this in the same turn a pass finishes**, whatever it found.
+> **Update this in the same turn a pass finishes** — {{PLANNER}} does, from the
+> auditor's report — whatever it found.
 
 ---
 
@@ -13,8 +14,8 @@
 **Baseline commit (brain, `.localgit`):** —
 **Baseline commit (repo):** —
 
-_(Two different histories: never copy one value into the other. The first pass writes
-both.)_
+_(Two different histories: never copy one value into the other. {{PLANNER}} writes
+both from the first report.)_
 
 ## What it found
 

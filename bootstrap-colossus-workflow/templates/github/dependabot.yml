@@ -1,0 +1,27 @@
+# Dependabot: security alerts and version updates on GitHub's own schedule.
+#
+# Independent of CI's audit job, which runs only at merge time and depends on the
+# registry's audit endpoint being up. One outage cannot silence both channels.
+#
+# Fix advisories by BUMPING, never by dismissing: a dismissal closes one advisory,
+# a bump closes the package.
+#
+# Who triages and who merges these PRs: CLAUDE.md → "Who merges".
+
+version: 2
+updates:
+  - package-ecosystem: {{DEPENDABOT_ECOSYSTEM}}
+    directory: '/'
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # One PR for the routine noise, so a real advisory or a major bump stays
+      # visible instead of buried under patch bumps.
+      minor-and-patch:
+        update-types: ['minor', 'patch']
+
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: monthly

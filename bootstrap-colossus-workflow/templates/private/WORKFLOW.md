@@ -5,8 +5,8 @@
 >
 > 🔴 **Pruned, never appended.** A rule that stops applying is **deleted** — not
 > struck through, not marked resolved, not moved to a "closed" section. History is
-> recoverable from the local backstop repo (`GIT_DIR=.localgit GIT_WORK_TREE=. git
-> log`); this file is only what is true now. **If it ever needs a table of contents,
+> recoverable from the local backstop repo (`git --git-dir=.localgit log`); this
+> file is only what is true now. **If it ever needs a table of contents,
 > it has already failed.**
 >
 > Opened {{TODAY}} by {{OWNER}} + {{PLANNER}}.
@@ -153,8 +153,8 @@ the trigger is change, not the calendar:
 - **or**, ignoring that floor, a doctrine file changed (root instructions, lanes,
   agent definitions, this file, the index).
 
-⛔ Never with zero commits since the marker. **Update the marker in the same turn the
-pass ends**, whatever it found.
+⛔ Never with zero commits since the marker. **{{PLANNER}} updates the marker in the
+same turn the pass ends**, from the commits the report names, whatever it found.
 
 **No file is both append-forever and mandatory reading** — the file always wins. The
 status doc holds **state**, edited in place; the **story** goes to the shipped log,

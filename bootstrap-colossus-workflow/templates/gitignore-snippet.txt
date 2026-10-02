@@ -8,7 +8,7 @@
 # Never committed — it is the private half of the project.
 .private/
 
-# The local undo backstop for .private/, CLAUDE.md and .claude/ — never pushed.
+# The local undo backstop for .private/, CLAUDE.md, AGENTS.md and .claude/ — never pushed.
 .localgit/
 
 # Claude Code — per-user and runtime files.
