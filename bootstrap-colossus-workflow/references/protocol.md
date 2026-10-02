@@ -18,6 +18,7 @@ project, when a piece may be dropped, and what must never be dropped.
 | Baton fields | `templates/private/baton.md` |
 | Escalation | `templates/claude/lanes/implementer.md` → "Escalating" |
 | Visual approval | `templates/claude/lanes/planner.md` → "What you NEVER do" |
+| Profiles (core / full) | `SKILL.md` → "The two profiles" |
 
 ---
 
@@ -86,15 +87,15 @@ own deliberate workflow. If the project has a database, say which one in `CLAUDE
 
 The emoji `🛑` / `✅` / `🕐` are fixed. The words are the human's interface, so they are
 written in the chat language: fill `{{STOP_SIGNAL}}` and `{{DONE_SIGNAL}}` in
-`{{CHAT_LANG}}` (Step 3). Set `{{TZ}}` from the machine's offset, confirmed by the
-human.
+`{{CHAT_LANG}}` (Step 3). Set `{{TZ}}` to the machine's zone name, confirmed by the
+human — a name, never an offset.
 
 ---
 
 ## 6. The session-start checklist
 
-Adapt two items to the project: the strategy doc (item 6 — delete it if the project
-has none) and the framework-docs rule (item 9 — point it at where the installed
+Adapt two items to the project: the strategy doc (item 6, 4 in core — delete it if the project
+has none) and the framework-docs rule (item 9, 7 in core — point it at where the installed
 version's docs actually live). ⛔ Never copy the list into `INDEX.md` or anywhere
 else.
 

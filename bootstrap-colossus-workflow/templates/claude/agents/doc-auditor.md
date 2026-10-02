@@ -33,11 +33,10 @@ Run `cat .private/operations/last-audit.md` for the date and the two baseline
 commits of the last pass, then see what changed since:
 
 - the brain (`.localgit`):
-  `GIT_DIR=.localgit GIT_WORK_TREE=. git log --oneline <brain-commit>..HEAD -- .private`
+  `git --git-dir=.localgit log --oneline <brain-commit>..HEAD -- .private`
 - the repo: `git log --oneline <repo-commit>..HEAD`
 
-On the first pass both baselines are `—`: sweep everything, then write both commits
-into the marker. **Audit the changed
+On the first pass both baselines are `—`: sweep everything. **Audit the changed
 docs first and say in your report what window you covered.** A full sweep is the
 exception; do it only if the marker is missing or the owner asked for one.
 
@@ -124,10 +123,12 @@ Docs in active folders that look superseded and probably belong in `archive/`.
 
 ## Output format
 
-Return ONE response:
+Return ONE response. **Always report both HEADs** you audited up to — that is what
+{{PLANNER}} writes into the marker, since you never edit it yourself.
 
 ```
 ## Doc audit — <date> (window: <commit>..HEAD)
+Audited up to — brain: <sha> · repo: <sha>
 
 ## Findings
 (grouped by the categories above; omit empty categories)

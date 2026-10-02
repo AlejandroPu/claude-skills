@@ -66,10 +66,14 @@ continuous thread. This workflow is built so that any session can be resumed col
   `doc-lint.py` that checks the mechanical half in seconds.
 
 **What it scaffolds:** `CLAUDE.md`, `AGENTS.md`, `.claude/` (settings, two lane files, two
-subagents), `.private/` (the brain), `.github/workflows/ci.yml`, and a local git backstop
-for everything the host never sees. It interviews you first (role names, languages, merge
-stage, timezone), and merges into an existing `CLAUDE.md`, `.claude/` or `.private/`
-instead of overwriting it.
+subagents), `.private/` (the brain), `.github/workflows/ci.yml`, `.github/dependabot.yml`,
+and a local git backstop for everything the host never sees. It comes in two profiles:
+**core** (the lanes, the baton, the backlog, `pr-reviewer` and the guardrails — for a page
+or a tool) and **full** (core plus the index, the status doc and shipped log, the
+`doc-auditor` and `doc-lint.py` — for a product whose brain has enough docs to drift). It
+interviews you first (role names, languages, profile, merge stage and branch protection,
+timezone), and merges into an existing `CLAUDE.md`, `.claude/` or `.private/` instead of
+overwriting it.
 
 **Needs:** git, a GitHub repo with the `gh` CLI, and Python 3 for `doc-lint.py`. The CI
 template is Node/TypeScript; the skill says how to translate it to other stacks.

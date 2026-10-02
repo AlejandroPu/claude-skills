@@ -28,7 +28,8 @@ It rests on four ideas:
 ## When NOT to use this
 
 - The project **already** has a `.private/` brain and lane files — edit those,
-  don't scaffold a second, drift-prone copy of the same process.
+  don't scaffold a second, drift-prone copy of the same process — except to upgrade
+  a core brain to full.
 - The user only wants to record one fact or one task — put it in the relevant doc
   or the backlog directly.
 - A throwaway script or a one-session spike. This workflow's whole value is
@@ -46,6 +47,22 @@ has to be earned rather than assumed. **A new project always starts at Stage 1.*
 
 The rules → `templates/CLAUDE.template.md` → "Who merges". When and how to graduate →
 `references/protocol.md` §4.
+
+## The two profiles
+
+| Profile | What it scaffolds |
+| --- | --- |
+| **Core** | `CLAUDE.md`, `AGENTS.md`, `.claude/` (settings, both lanes, `pr-reviewer`), `.private/WORKFLOW.md`, `baton.md`, `operations/backlog.md`, `owner-queue.md`, `infrastructure.md`, `.localgit`, CI, `dependabot.yml`, pre-commit, `verify` |
+| **Full** | core + `INDEX.md`, `implementation-status.md` + `shipped-log.md`, `baton-archive.md`, `doc-auditor`, `doc-lint.py`, `last-audit.md` |
+
+- **Core** fits a one-person, one-area project.
+- **Full** fits once the brain has enough docs to drift.
+- **The trigger to upgrade:** the first time a session acts on a stale or
+  contradictory doc, or `.private/` holds more than ~10 docs. Upgrading means running
+  the skill again with "full"; Step 0's never-clobber rule makes that a merge.
+
+The profile and its trigger go in `backlog.md` → *Closed decisions*, next to the
+merge stage.
 
 ## Where the doctrine lives
 
@@ -68,30 +85,34 @@ AGENTS.md                      8-line pointer to CLAUDE.md (other agent tools)
   lanes/<planner>.md           what the planning terminal may and may not do
   lanes/<implementer>.md       what the building terminal may and may not do
   agents/pr-reviewer.md        fresh-eyes pre-merge review subagent
-  agents/doc-auditor.md        read-only docs drift auditor subagent
+  agents/doc-auditor.md        (full) read-only docs drift auditor subagent
 .private/                      GITIGNORED — the project brain
   WORKFLOW.md                  🔴 the rules in force. Read first, pruned not appended
   baton.md                     the handoff channel: in-flight state + feedback
-  INDEX.md                     curated map: which doc to read for which task
+  INDEX.md                     (full) curated map: which doc to read for which task
   operations/
     backlog.md                 In progress / Done / Next up + closed decisions
-    implementation-status.md   what is LIVE vs only designed — STATE ONLY
-    shipped-log.md             how each cycle shipped — NOT session-start reading
-    baton-archive.md           closed handoffs, verbatim — NOT session-start reading
+    implementation-status.md   (full) what is LIVE vs only designed — STATE ONLY
+    shipped-log.md             (full) how each cycle shipped — NOT session-start reading
+    baton-archive.md           (full) closed handoffs, verbatim — NOT session-start reading
     owner-queue.md             what waits on the human (never lives in the baton)
     infrastructure.md          single canonical home for external-infra facts
-    last-audit.md              marker: the commit the next doc audit scopes from
+    last-audit.md              (full) marker: the commit the next doc audit scopes from
   engineering/                 the technical HOW (specs, data model, flows)
   product/                     the WHAT and WHY (strategy, user-facing specs)
-  tools/doc-lint.py            mechanical doc checks — run before the auditor
-  archive/                     cold storage
+  tools/doc-lint.py            (full) mechanical doc checks — run before the auditor
+  archive/                     (full) cold storage
   for-owner/                   the human's own space — agents never touch it
 .localgit/                     GITIGNORED — the undo backstop for everything above
                                that the host never sees. See Step 4.
 .github/workflows/ci.yml       the checks that gate every merge
-.husky/pre-commit              DERIVED from the stack, not copied — see Step 2/4
+.github/dependabot.yml         security alerts + grouped version updates
+.husky/pre-commit (Node) /     DERIVED from the stack, not copied — see Step 2/4
+  .pre-commit-config.yaml (Python)
 package.json → "verify"        DERIVED from the stack, not copied — see Step 2
 ```
+
+Rows marked **(full)** are scaffolded by the full profile only ("The two profiles").
 
 Everything above has a template behind it except the two rows marked **DERIVED**:
 the pre-commit hook and the `verify` command are built from the stack you detect,
@@ -112,32 +133,41 @@ project already says. Announce what you found before writing anything. A project
 that already has a CLAUDE.md has conventions in it that the human wrote on
 purpose.
 
-### Step 1 — Interview (one turn, two parts)
+### Step 1 — Interview (two parts — the second arrives a turn later)
 
 Do not guess these from the repo — the answers are policy, not facts. Ask everything
 in **one message**: `AskUserQuestion` for the four choices (it takes at most four
 questions, each with 2–4 options), and plain text in the same message for the three
 free-text answers.
 
+`AskUserQuestion` returns before the human has typed the free-text answers, so they
+arrive a turn later. End the turn after the tool returns, and **write nothing until
+both parts are in**.
+
 **`AskUserQuestion`, four questions:**
 
 1. **Role names** — `Max Opus` / `Opus Jr.` (slugs `max-opus` / `opus-jr`) vs the
    model-agnostic `Max` / `Jr.`. The protocol is identical either way; only the labels
    move.
-2. **Code + docs language** — English (recommended: docs in English travel) vs the
-   human's language.
-3. **Chat language** — the human's choice. It is separate from (2) on purpose, and it
-   is the language of the stop signals.
-4. **Merge stage** — **Stage 1** (recommended for a new project: the owner merges
-   every PR) vs Stage 2. Record the choice **and its reason** in `backlog.md` →
-   *Closed decisions*.
+2. **Languages** — three options: docs and chat in English; docs in English, chat in
+   the human's language (recommended: docs in English travel); everything in the
+   human's language. Code + docs language and chat language are separate on purpose —
+   still two values, just asked together — and the chat language is the language of
+   the stop signals.
+3. **Profile** — core vs full ("The two profiles"). Recommend **full** for a product
+   with users and payments, **core** for a page or a tool.
+4. **Merge stage + branch protection** — four options: Stage 1 + protect
+   (recommended where the plan allows it), Stage 1 + convention only, Stage 2 +
+   protect, Stage 2 + convention. Record both answers, **each with its reason**, in
+   `backlog.md` → *Closed decisions*.
 
 **Plain text, same message:**
 
 - **Project name** and one line on what it is (`{{PROJECT}}`, `{{PITCH}}`).
 - **The owner's name** (`{{OWNER}}`) — the brain addresses them by it.
-- **Timezone** — read the machine's offset first (`date '+%z'` / `Get-Date -Format
-  'zzz'`) and ask them to confirm it, rather than asking cold.
+- **Timezone** — read the machine's zone first (`date '+%Z'` / `(Get-TimeZone).Id`)
+  and ask them to confirm its **name**, rather than asking cold. `{{TZ}}` is a label;
+  the machine clock carries the offset.
 
 ### Step 2 — Detect the stack, derive `verify` and CI
 
@@ -185,11 +215,12 @@ Copy each file from `templates/` and substitute:
 | `{{VERIFY_CMD}}`      | e.g. `npm run verify`                                     |
 | `{{CODE_LANG}}`       | e.g. `English`                                            |
 | `{{CHAT_LANG}}`       | e.g. `Spanish`                                            |
-| `{{TZ}}`              | e.g. `Chile (GMT-4)`                                      |
+| `{{TZ}}`              | e.g. `Chile` — the zone's name only. The machine clock carries the offset; most zones change it twice a year |
 | `{{STOP_SIGNAL}}`     | the stop line's words in `{{CHAT_LANG}}`, ending where the role name goes — e.g. `PARADA — cambia a la terminal de` / `STOP — switch to the terminal of` |
 | `{{DONE_SIGNAL}}`     | the done word in `{{CHAT_LANG}}` — e.g. `LISTO` / `DONE`. The emoji (🛑 ✅ 🕐) stay fixed |
 | `{{DEFAULT_BRANCH}}`  | usually `main`                                            |
 | `{{NODE_MAJOR}}`      | the Node major version the project builds on — read it from `.nvmrc` or `package.json` → `engines` |
+| `{{DEPENDABOT_ECOSYSTEM}}` | Dependabot's name for the stack's package manager: `npm`, `pip`, `gomod`, `cargo`… — same stack detection as Step 2 |
 | `{{STACK_TABLE}}`     | the detected stack, as a small table                       |
 | `{{TODAY}}`           | `date '+%Y-%m-%d'` — read it, don't assume                |
 | `{{OWNER}}`           | the human's name — the brain addresses them by it          |
@@ -197,16 +228,18 @@ Copy each file from `templates/` and substitute:
 | `{{MERGE_STAGE_WHY}}` | the reason, in the owner's words — it goes in *Closed decisions* |
 | `{{BRANCH_RULES}}`    | the `CLAUDE.md` section on the default branch — one of the two blocks below |
 
-`{{BRANCH_RULES}}` depends on whether Step 4.5 could protect the branch — fill it once that step has run:
+`{{BRANCH_RULES}}` depends on whether Step 4, item 5 protected the branch (or the
+owner declined it in Step 1) — fill it once that is settled:
 
 - **protected** — a ``### `{{DEFAULT_BRANCH}}` is protected`` heading, then what is
   enforced: no direct pushes, changes via PR only, CI must pass, force-push and
   branch deletion blocked, linear history required.
-- **not available** — a ``### `{{DEFAULT_BRANCH}}` — the rules are a convention``
-  heading, then the same rules, **saying plainly that nothing enforces them**
-  (`references/guardrails.md` §4).
+- **convention** (declined in Step 1, or not available on the plan) — a
+  ``### `{{DEFAULT_BRANCH}}` — the rules are a convention`` heading, then the same
+  rules, **saying plainly that nothing enforces them** (`references/guardrails.md` §4).
 
-`last-audit.md` ships with both baselines as `—`; the auditor's first pass writes them.
+`last-audit.md` ships with both baselines as `—`; the planner writes them from the
+auditor's first report.
 
 Template → destination:
 
@@ -225,6 +258,7 @@ Template → destination:
 | `templates/private/operations/*.md`             | `.private/operations/*.md`               |
 | `templates/private/tools/doc-lint.py`           | `.private/tools/doc-lint.py`             |
 | `templates/github/ci.yml`                       | `.github/workflows/ci.yml`               |
+| `templates/github/dependabot.yml`               | `.github/dependabot.yml`                 |
 | `templates/gitignore-snippet.txt`               | appended to `.gitignore`                 |
 
 Also create the empty brain folders the INDEX promises: `.private/engineering/`,
@@ -234,19 +268,38 @@ Fill the templates; do not paraphrase them. If a template rule genuinely does no
 apply (e.g. no UI ⇒ no visual-merge gate), **delete the rule and say so in the
 summary** — don't leave a rule in place that the project will silently violate.
 
-**Last, run the project's own formatter in write mode** over the scaffolded files the
-repo tracks (`CLAUDE.md`, `AGENTS.md`, `.claude/`, `.github/workflows/ci.yml`). The
-templates are deliberately not pre-formatted: a format that passes one formatter's
-defaults is not one that passes this project's config, and a formatter run before
-substitution can rewrite a `{{…}}` inside YAML. Skip it and Step 6's `verify` fails.
+**Core profile.** There are no template variants; core is the full set, trimmed:
+
+- Skip the templates marked **(full)** in "What gets scaffolded", and the `archive/`
+  folder.
+- Delete the passages of the scaffolded copies that point at what was skipped. Today
+  they are:
+  - `CLAUDE.md` → the session-start checklist items that read `INDEX.md` and the
+    status doc. Renumber the rest, and grep for any "step N" / "item N" pointer into
+    the list;
+  - `CLAUDE.md` → the "This list lives here and only here … `INDEX.md`" sentence
+    under the checklist;
+  - the planner lane → the `doc-lint` / `doc-auditor` clause of the pickup
+    paragraph, and "Re-check `implementation-status.md`" becomes "re-check the
+    *Done* section of `backlog.md`";
+  - `WORKFLOW.md` §2.4 → the prune does not move the entry to `baton-archive.md`: in
+    core the planner deletes it once read (`.localgit` keeps the history);
+  - `WORKFLOW.md` §2.5 → the lint paragraph and the auditor paragraphs. **Keep** the
+    duty paragraph above them and the "No file is both append-forever and mandatory
+    reading" paragraph below;
+  - `WORKFLOW.md` §3 → the doc-lint plan item;
+  - `backlog.md` → the `shipped-log.md` clause of *Done*.
+
+  ⚠️ That list is today's. The check that proves it is complete is the grep in
+  Step 4, item 6 — trust the grep, not the list.
 
 ⚠️ **If you renumber or drop a section of `WORKFLOW.md`, re-point the references to
 it.** `CLAUDE.md`, the lanes, `doc-auditor.md`, several brain docs and `doc-lint.py`
 cite it by number (`WORKFLOW.md §2.1`–`§2.6`), and some of `doc-lint.py`'s are inside
 the *error messages it prints*. This has already broken once: the template was trimmed, every `§3.x`
 became `§2.x`, and six pointers were left aiming at nothing — the linter's own
-check #1, failing on the linter. **After scaffolding, run `doc-lint.py` once; it
-must come back clean.**
+check #1, failing on the linter. Step 4, item 6 runs `doc-lint.py`; it must come
+back clean.
 
 ### Step 4 — Guardrails
 
@@ -267,17 +320,44 @@ must come back clean.**
    one separate git dir at the repo root whose worktree *is* the root:
 
    ```bash
-   GIT_DIR=.localgit GIT_WORK_TREE=. git init
-   GIT_DIR=.localgit GIT_WORK_TREE=. git add -f CLAUDE.md .claude .private
-   GIT_DIR=.localgit GIT_WORK_TREE=. git commit -m "chore: scaffold the workflow"
+   git --git-dir=.localgit init
+   git --git-dir=.localgit config core.bare false     # init with no work tree makes it bare, and a bare repo rejects core.worktree
+   git --git-dir=.localgit config core.worktree "$(git rev-parse --show-toplevel)"
+   git --git-dir=.localgit config core.autocrlf false  # Git for Windows defaults to true: a restore would write CRLF and fail the format check
    ```
 
-   `-f` is **required and permanent**, not a one-off: this repo reads the worktree's
-   `.gitignore`, the same file that keeps these paths off the host. Expected, not a
-   misconfiguration. Recovery is one command:
+   Then write this allowlist into `.localgit/info/exclude`, so `status` shows the
+   brain and nothing else:
+
+   ```
+   /*
+   !CLAUDE.md
+   !AGENTS.md
+   !.claude/
+   !.private/
+   .claude/settings.local.json
+   .claude/scheduled_tasks.lock
+   .claude/worktrees/
+   ```
+
+   And the first commit:
 
    ```bash
-   GIT_DIR=.localgit GIT_WORK_TREE=. git checkout -- <path>
+   git --git-dir=.localgit add -f CLAUDE.md AGENTS.md .claude/settings.json .claude/lanes .claude/agents .private
+   git --git-dir=.localgit commit -m "chore: scaffold the workflow"
+   ```
+
+   `-f` is still required for a **new** brain file: the worktree's `.gitignore`
+   ignores `.private/`, and it outranks `info/exclude`, so a new brain file does not
+   even show in `status`. What `-f` must never get is `.claude` as a whole — that
+   sweeps in `settings.local.json`, the lock file and `.claude/worktrees/` (full
+   copies of the repo). Pass it **explicit paths that hold nothing but the brain**.
+   Already-tracked files need no `-f`: `git --git-dir=.localgit add -u`.
+
+   Recovery is one command:
+
+   ```bash
+   git --git-dir=.localgit checkout -- <path>
    ```
 
    **Nothing commits automatically.** Tell the human where the commit belongs: at the
@@ -291,28 +371,50 @@ must come back clean.**
    `templates/claude/settings.json`). Keep `.env.example` readable.
 4. **Pre-commit** — husky + lint-staged (Node) or pre-commit (Python): format and
    lint the *staged* files, abort the commit on failure.
-5. **Branch protection** on `{{DEFAULT_BRANCH}}`, where the plan allows it → the
-   command, and what to do when it fails, in `references/guardrails.md` §4.
+5. **Branch protection** — only if the owner chose it in Step 1. The command, and
+   what to do when it fails → `references/guardrails.md` §4. Declined → fill
+   `{{BRANCH_RULES}}` with the convention block, no call.
+6. **Format and lint, last.** This is the first moment every placeholder is filled,
+   `{{BRANCH_RULES}}` included — so nothing written after it goes unformatted.
+   - **Run the project's own formatter in write mode** over the scaffolded files the
+     repo tracks (`CLAUDE.md`, `AGENTS.md`, `.claude/`, `.github/workflows/ci.yml`,
+     `.github/dependabot.yml`). The templates are deliberately not pre-formatted: a
+     format that passes one formatter's defaults is not one that passes this
+     project's config, and a formatter run before substitution can rewrite a `{{…}}`
+     inside YAML. Skip it and Step 6's `verify` fails.
+   - **Full:** run `doc-lint.py` once; it must come back clean.
+   - **Core:** there is no `doc-lint.py`; this grep replaces it and must print
+     nothing:
+
+     ```bash
+     grep -rn "INDEX.md\|implementation-status\|shipped-log\|baton-archive\|doc-auditor\|doc-lint\|last-audit" CLAUDE.md AGENTS.md .claude .private
+     ```
 
 ### Step 5 — Seed the brain with reality
 
 An empty brain is a dead brain. Before finishing:
 
-- **`implementation-status.md`** — write today's honest snapshot: what actually
-  runs, what is only designed. For a greenfield project that is "nothing yet";
-  say so explicitly rather than leaving the template prose.
+- **`implementation-status.md`** (full) — write today's honest snapshot: what
+  actually runs, what is only designed. For a greenfield project that is "nothing
+  yet"; say so explicitly rather than leaving the template prose. **In core**, that
+  snapshot goes in `backlog.md` → *Done*.
 - **`backlog.md`** — put the real next tasks under *Next up*, and seed *Closed
-  decisions* with the two calls just made: the workflow itself, and **the merge
-  stage with its reason and its graduation trigger**.
-- **`INDEX.md`** — list the docs that actually exist. Delete rows for folders you
-  didn't create.
+  decisions* with the calls just made: the workflow itself, **the profile and its
+  upgrade trigger**, **the merge stage with its reason and its graduation
+  trigger**, and **branch protection with its reason**.
+- **`INDEX.md`** (full) — list the docs that actually exist. Delete rows for folders
+  you didn't create.
 - **`baton.md`** — set `to: {{planner-slug}}` and `next:` = the first real task.
 
 ### Step 6 — Hand back
 
-Run `{{VERIFY_CMD}}` (it passes on a fresh scaffold once Step 3's formatter run is done), confirm `git status` shows
-neither `.private/` nor `.localgit/`, confirm the backstop holds the scaffold
-(`GIT_DIR=.localgit GIT_WORK_TREE=. git log --oneline`), then print the kickoff:
+Run `{{VERIFY_CMD}}` (it passes on a fresh scaffold once Step 4's last item has run).
+Confirm `git status` shows neither `.private/` nor `.localgit/`. Re-run the lint of
+Step 4, item 6 (`doc-lint.py` in full, the grep in core) — Step 5 wrote into the
+brain since. Commit what Steps 4–5 changed to the backstop
+(`git --git-dir=.localgit add -u`, plus `add -f` for any new brain file), and confirm
+it holds the scaffold: `git --git-dir=.localgit log --oneline`, and
+`git --git-dir=.localgit status --short` empty. Then print the kickoff:
 
 > The workflow is live. Open a terminal and say **"you are {{PLANNER}}"** to plan,
 > or **"you are {{IMPLEMENTER}}"** to build. One at a time, never

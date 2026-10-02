@@ -83,7 +83,7 @@ the backlog does not keep a second copy.
 
 ### `operations/last-audit.md` — the audit marker
 
-Both baselines start as `—`; the auditor's first pass writes them. The brain commit
+Both baselines start as `—`; the planner writes them from the auditor's first report. The brain commit
 (`.localgit`) and the repo commit are different histories and never share a value.
 
 ### `tools/doc-lint.py` — the mechanical half of the audit

@@ -17,8 +17,10 @@ building, not capable vs cheap.
 - **The baton's `level:` field names the task's level** — **not a model and not an
   effort**. The doctrine lives in ONE place, `CLAUDE.md` → "Task levels". What is
   yours as the build role: **you cannot verify the human's mapping and should not
-  try**, but **if the level on the baton is not the one they told you, flag the
-  mismatch** instead of building against the wrong one.
+  try**. A level that differs from the one the human told you is **their
+  interpretation, not an error** — do not flag it. Raise the subject **only** if the
+  work turns out to need more capability than this terminal was given: stop and say
+  so (*Escalating*, below).
 - **One task = one level, start → finish** (`CLAUDE.md` → "Task levels"), in the
   terminal you were started in, including the trivial post-merge cleanup. If what you
   find mid-build turns out **not** to be fixable forward, **stop and say so** before
