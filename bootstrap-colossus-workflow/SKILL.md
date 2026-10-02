@@ -284,11 +284,22 @@ summary** — don't leave a rule in place that the project will silently violate
     *Done* section of `backlog.md`";
   - `WORKFLOW.md` §2.4 → the prune does not move the entry to `baton-archive.md`: in
     core the planner deletes it once read (`.localgit` keeps the history);
+  - `WORKFLOW.md` §2.4 → "promote what is durable (status doc, backlog, the spec)"
+    becomes "(backlog, the spec)";
   - `WORKFLOW.md` §2.5 → the lint paragraph and the auditor paragraphs. **Keep** the
     duty paragraph above them and the "No file is both append-forever and mandatory
-    reading" paragraph below;
+    reading" paragraph below, trimmed as the next two items say;
+  - `WORKFLOW.md` §2.5, duty paragraph → delete the two sentences after "📌 **The
+    duty is the planner's and it comes first.**" (the subagent, the auditor) and add
+    "On every pickup, update the docs the feedback touches.";
+  - `WORKFLOW.md` §2.5, "No file is both…" → keep the bold rule and the
+    origin-project sentence; replace the status-doc / shipped-log sentence with
+    "`backlog.md` → *Done* is one line per cycle; the story of how something shipped
+    is not kept in any file read every session.";
   - `WORKFLOW.md` §3 → the doc-lint plan item;
-  - `backlog.md` → the `shipped-log.md` clause of *Done*.
+  - `backlog.md` → the `shipped-log.md` clause of *Done*;
+  - `owner-queue.md` → "the shipped log and the backlog already hold history"
+    becomes "the backlog already holds history".
 
   ⚠️ That list is today's. The check that proves it is complete is the grep in
   Step 4, item 6 — trust the grep, not the list.
@@ -387,7 +398,7 @@ back clean.
      nothing:
 
      ```bash
-     grep -rn "INDEX.md\|implementation-status\|shipped-log\|baton-archive\|doc-auditor\|doc-lint\|last-audit" CLAUDE.md AGENTS.md .claude .private
+     grep -rni "INDEX.md\|implementation-status\|shipped-log\|baton-archive\|doc-auditor\|doc-lint\|last-audit\|status doc\|shipped log\|auditor" CLAUDE.md AGENTS.md .claude .private
      ```
 
 ### Step 5 — Seed the brain with reality
